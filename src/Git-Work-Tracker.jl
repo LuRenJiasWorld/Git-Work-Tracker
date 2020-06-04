@@ -11,7 +11,6 @@
 
 module GitWorkTracker
 
-using GitCommand
 using ArgParse
 using Dates
 
@@ -21,6 +20,8 @@ IGNORE_PATH = Set{String}([
     "node_modules",
     "vendor"
 ])
+
+GIT_COMMAND = `git --no-pager`
 
 """
     main()
@@ -43,7 +44,7 @@ function main()
     paths_contains_git_repository = _scan_git_repositories(parsed_args["scan-dir"])
 
     # 开始解析
-    prinln("在目录下扫描到$(size(paths_contains_git_repository))个仓库，开始按照设定的规则进行解析:")
+    println("在目录下扫描到$(length(paths_contains_git_repository))个仓库，开始按照设定的规则进行解析:")
     _read_git_repositories(paths_contains_git_repository, parsed_args["all-branches"], parsed_args["date"])
 end
 
@@ -113,7 +114,69 @@ end
 function _read_git_repositories(path_list::Set{String},
                                 all_branches::Bool,
                                 date::String)
+    statistics = Dict{String, Integer}(
+        "add_lines"     =>      0,
+        "remove_lines"  =>      0,
+        "add_files"     =>      0,
+        "remove_files"  =>      0,
+        "commits"       =>      0
+    )
 
+    for each_path in path_list
+        _read_git_repository(each_path, all_branches, date)
+#         add_lines, remove_lines, add_files, remove_files, commits = _read_git_repository(each_path, all_branches, date)
+#
+#         statistics["add_lines"]    = statistics["add_lines"]    + add_lines
+#         statistics["remove_lines"] = statistics["remove_lines"] + remove_lines
+#         statistics["add_files"]    = statistics["add_files"]    + add_files
+#         statistics["remove_files"] = statistics["remove_files"] + remove_files
+#         statistics["commits"]      = statistics["commits"]      + commits
+    end
+
+    return statistics
+end
+
+"""
+    _read_git_repository(git_path::String,
+                         all_branches::Bool,
+                         date::String)
+
+读取每个Git仓库中的以下内容：
+1. 新增行数
+2. 删除行数
+3. 新增文件数
+4. 删除文件数
+5. 提交数
+"""
+function _read_git_repository(git_path::String,
+                              all_branches::Bool,
+                              date::String)
+
+    # 1. 分支检查
+    branches = Array{String, 1}()
+    if all_branches == true
+        # 获取所有分支列表
+        branch_list_raw = _run_git_command(`branch -a`)
+        for each in branch_list_raw
+            try
+                branch_name = match(r"[ ]([\S]+$)", each)[1]
+                push!(branches, branch_name)
+            catch e; end
+        end
+    else
+        # 仅master分支
+        push!(branches, "master")
+    end
+
+    # 2. 获取每个分支中的每个commit编号
+    commit_id = Array{String, 1}()
+    for each_branch in branches
+
+    end
+end
+
+function _run_git_command(command::Cmd)
+    return split(readchomp(`$GIT_COMMAND $command`), "\n")
 end
 
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
