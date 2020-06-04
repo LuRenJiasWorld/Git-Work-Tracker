@@ -18,3 +18,7 @@ _read_git_repositories(path_list::Set{String},
                            all_branches::Bool,
                            date::String)
 ```
+
+```@docs
+_run_git_command(dir::String, command::Cmd)
+```

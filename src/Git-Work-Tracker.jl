@@ -15,7 +15,7 @@ using ArgParse
 using Dates
 using PrettyTables
 
-export main, _mount_argparse, _scan_git_repositories, _read_git_repositories
+export main, _mount_argparse, _scan_git_repositories, _read_git_repositories, _run_git_command
 
 IGNORE_PATH = Array{String, 1}([
     # Git的子目录
@@ -29,7 +29,8 @@ IGNORE_PATH = Array{String, 1}([
     "/venv",
     # 暂时不会动的项目
     "/Firefox",
-    "/ReactOS"
+    "/ReactOS",
+    "/go-common-master"
 ])
 
 GIT_COMMAND = `git --no-pager`
@@ -127,8 +128,8 @@ function _scan_git_repositories(scan_dir::String)
 
         _overprint("正在扫描目录$(dir_name)")
 
-        if occursin(".git", root)
-            push!(dir_list, replace(root, r"\.git.*$" => ""))
+        if length(findall(r"\.git$", root)) != 0
+            push!(dir_list, replace(root, r"\.git$" => ""))
         end
     end
 
@@ -160,7 +161,7 @@ function _read_git_repositories(path_list::Set{String},
 
     for each_path in path_list
         path_count = path_count + 1
-        _overprint("正在解析仓库$(path_count)/$(length(path_list))")
+        _overprint("正在解析仓库$(path_count)/$(length(path_list))：$(each_path)")
 
         try
             current_statistics = _read_git_repository(each_path, all_branches, date)
