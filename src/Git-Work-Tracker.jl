@@ -175,6 +175,11 @@ function _read_git_repository(git_path::String,
     end
 end
 
+"""
+    _run_git_command(command::Cmd)
+
+运行指定的Git命令（必须传入Cmd类型）
+"""
 function _run_git_command(command::Cmd)
     return split(readchomp(`$GIT_COMMAND $command`), "\n")
 end
