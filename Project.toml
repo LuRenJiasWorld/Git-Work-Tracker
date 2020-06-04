@@ -1,3 +1,8 @@
+name = "Git-Work-Tracker"
+uuid = "1A55C9F5-947D-4AC9-8D86-A90CD5E19142"
+authors = ["Benjamin Chris <loli@lurenjia.in>"]
+version = "0.6.0"
+
 [deps]
 ArgParse = "c7e460c6-2fb9-53a9-8c5b-16f535851c63"
 Documenter = "e30172f5-a6a5-5a46-863b-614d45cd2de4"
