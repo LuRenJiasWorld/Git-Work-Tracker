@@ -17,9 +17,19 @@ using PrettyTables
 
 export main, _mount_argparse, _scan_git_repositories, _read_git_repositories
 
-IGNORE_PATH = Set{String}([
-    "node_modules",
-    "vendor"
+IGNORE_PATH = Array{String, 1}([
+    # Git的子目录
+    "/.git/",
+    # 一些第三方库
+    "/node_modules",
+    "/vendor",
+    "/thinkphp",
+    "/think",
+    "/gradle",
+    "/venv",
+    # 暂时不会动的项目
+    "/Firefox",
+    "/ReactOS"
 ])
 
 GIT_COMMAND = `git --no-pager`
@@ -98,25 +108,31 @@ end
 function _scan_git_repositories(scan_dir::String)
     dir_list = Set{String}()
 
+    dir_count = 0
+    ignore_dir_count = 0
+
     for (root, dirs, files) in walkdir(scan_dir)
-        for dir in dirs
-            if occursin(".git", joinpath(root, dir))
-                path_contains_git_repository = replace(joinpath(root, dir), r"\.git.*$" => "")
-                exclude = false
+        dir_count = dir_count + 1
 
-                for each_ignore_path in IGNORE_PATH
-                    if occursin(each_ignore_path, path_contains_git_repository)
-                        exclude = true
-                        break
-                    end
-                end
+        if length(findall(x -> occursin(x, root), IGNORE_PATH)) != 0
+            ignore_dir_count = ignore_dir_count + 1
+            continue
+        end
 
-                if exclude == false
-                    push!(dir_list, path_contains_git_repository)
-                end
-            end
+        if length(root) > displaysize(stdout)[2] - 20
+            dir_name = string(first(root, displaysize(stdout)[2] - 40), "...")
+        else
+            dir_name = root
+        end
+
+        _overprint("正在扫描目录$(dir_name)")
+
+        if occursin(".git", root)
+            push!(dir_list, replace(root, r"\.git.*$" => ""))
         end
     end
+
+    println("目录扫描完成，扫描了$(dir_count)个目录，忽略了$(ignore_dir_count)个目录，扫描到$(length(dir_list))个Git目录")
 
     return dir_list
 end
@@ -140,7 +156,12 @@ function _read_git_repositories(path_list::Set{String},
         "commits"        =>      0
     )
 
+    path_count = 0
+
     for each_path in path_list
+        path_count = path_count + 1
+        _overprint("正在解析仓库$(path_count)/$(length(path_list))")
+
         try
             current_statistics = _read_git_repository(each_path, all_branches, date)
 
@@ -180,7 +201,7 @@ function _read_git_repository(git_path::String,
     branches = Array{String, 1}()
     if all_branches == true
         # 获取所有分支列表
-        branch_list_raw = _run_git_command(`branch -a`)
+        branch_list_raw = _run_git_command(git_path, `branch -a`)
         for each in branch_list_raw
             matched = match(r"[ ]([\S]+$)", each)
             if typeof(matched) == RegexMatch && length(matched.offsets) == 1
@@ -193,14 +214,18 @@ function _read_git_repository(git_path::String,
         push!(branches, "master")
     end
 
-    # 2. 获取每个分支中的每个commit编号，因为可能重复，所以要使用Set
-    commit_id = Set{String}()
+    # 2. 获取每个分支中的每个commit编号，使用Array让其按时间顺序排列（第三步可以极大优化性能）
+    commit_id = Array{String, 1}()
     for each_branch in branches
-        commit_log = _run_git_command(`log --first-parent $each_branch`)
+        commit_log = _run_git_command(git_path, `log --first-parent $each_branch`)
         for each_commit_log_line in commit_log
             matched_line = match(r"^commit ([a-z0-9]{40})", each_commit_log_line)
             if typeof(matched_line) == RegexMatch && length(matched_line.offsets) == 1
-                push!(commit_id, matched_line[1])
+                # 去重
+                current_commit_id = matched_line[1]
+                if (length(findall(x -> x == current_commit_id, commit_id)) == 0)
+                    push!(commit_id, current_commit_id)
+                end
             end
         end
     end
@@ -212,11 +237,11 @@ function _read_git_repository(git_path::String,
         "add_files"      =>      0,
         "modified_files" =>      0,
         "remove_files"   =>      0,
-        "commits"        =>      length(commit_id)
+        "commits"        =>      0
     )
 
     for each_commit in commit_id
-        commit_patch = _run_git_command(`show $each_commit --date=short`)
+        commit_patch = _run_git_command(git_path, `show $each_commit --date=short`)
         # 检查日期
         commit_date = ""
 
@@ -229,8 +254,11 @@ function _read_git_repository(git_path::String,
         end
 
         if commit_date == date
+            # 今日Commit+1
+            statistics["commits"] = statistics["commits"] + 1
+
             # 获取行数增减情况
-            commit_lines_info = _run_git_command(`show $each_commit --stat --date=short`)
+            commit_lines_info = _run_git_command(git_path, `show $each_commit --stat --date=short`)
             last_commit_line_info = commit_lines_info[length(commit_lines_info)]
 
             insertions = match(r"([\d]+) insertion", last_commit_line_info)
@@ -245,7 +273,7 @@ function _read_git_repository(git_path::String,
             end
 
             # 获取文件增减情况
-            commit_files_info = _run_git_command(`show $each_commit --name-status --date=short`)
+            commit_files_info = _run_git_command(git_path, `show $each_commit --name-status --date=short`)
             for each_line in commit_files_info
                 # M = modified
                 # A = added
@@ -264,6 +292,11 @@ function _read_git_repository(git_path::String,
                     statistics["remove_files"]      = statistics["remove_files"] + 1
                 end
             end
+        elseif statistics["commits"] > 0
+            # 第二步按照时间顺序进行了排序，所以说如果检测到commit > 0的情况，但时间不匹配，说明不需要继续查找了
+            break
+        elseif Date(commit_date, DateFormat("y-m-d")) < Date(date, DateFormat("y-m-d"))
+            break
         end
     end
 
@@ -271,13 +304,27 @@ function _read_git_repository(git_path::String,
 end
 
 """
-    _run_git_command(command::Cmd)
+    _run_git_command(dir::String, command::Cmd)
 
 运行指定的Git命令（必须传入Cmd类型）
 """
-function _run_git_command(command::Cmd)
-    return split(readchomp(`$GIT_COMMAND $command`), "\n")
+function _run_git_command(dir::String, command::Cmd)
+    return split(readchomp(`$GIT_COMMAND --git-dir="$(dir).git/" $command`), "\n")
 
+end
+
+function _overprint(str)
+    print("\u1b[1F")
+    #Moves cursor to beginning of the line n (default 1) lines up
+    print(str)   #prints the new line
+    print("\u1b[0K")
+    # clears  part of the line.
+    #If n is 0 (or missing), clear from cursor to the end of the line.
+    #If n is 1, clear from cursor to beginning of the line.
+    #If n is 2, clear entire line.
+    #Cursor position does not change.
+
+    println() #prints a new line, i really don't like this arcane codes
 end
 
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
