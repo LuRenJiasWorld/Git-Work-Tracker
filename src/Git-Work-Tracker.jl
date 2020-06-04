@@ -218,7 +218,16 @@ function _read_git_repository(git_path::String,
     for each_commit in commit_id
         commit_patch = _run_git_command(`show $each_commit --date=short`)
         # 检查日期
-        commit_date = match(r"Date:[\s]+([0-9]{4}-[0-9]{2}-[0-9]{2})", commit_patch[3])[1]
+        commit_date = ""
+
+        for each_patch in commit_patch
+            current_match = match(r"Date:[\s]+([0-9]{4}-[0-9]{2}-[0-9]{2})", each_patch)
+            if typeof(current_match) == RegexMatch && length(current_match.offsets) == 1
+                commit_date = current_match[1]
+                break
+            end
+        end
+
         if commit_date == date
             # 获取行数增减情况
             commit_lines_info = _run_git_command(`show $each_commit --stat --date=short`)
@@ -268,7 +277,7 @@ end
 """
 function _run_git_command(command::Cmd)
     return split(readchomp(`$GIT_COMMAND $command`), "\n")
-    
+
 end
 
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
