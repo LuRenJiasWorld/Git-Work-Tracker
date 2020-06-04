@@ -13,6 +13,7 @@ module GitWorkTracker
 
 using ArgParse
 using Dates
+using PrettyTables
 
 export main, _mount_argparse, _scan_git_repositories, _read_git_repositories
 
@@ -40,12 +41,28 @@ function main()
     end
 
     # 开始扫描
+    println("")
     println("开始扫描目录$(parsed_args["scan-dir"]):")
     paths_contains_git_repository = _scan_git_repositories(parsed_args["scan-dir"])
 
     # 开始解析
+    println("")
     println("在目录下扫描到$(length(paths_contains_git_repository))个仓库，开始按照设定的规则进行解析:")
-    _read_git_repositories(paths_contains_git_repository, parsed_args["all-branches"], parsed_args["date"])
+    statistics = _read_git_repositories(paths_contains_git_repository, parsed_args["all-branches"], parsed_args["date"])
+
+    # 输出结果
+    println("")
+    println("扫描完成！你在$(parsed_args["date"])的Git活动如下所示:")
+    pretty_table([
+        "Commits"               statistics["commits"];
+        "Add Lines"             statistics["add_lines"];
+        "Delete Lines"          statistics["remove_lines"];
+        "Add Files"             statistics["add_files"];
+        "Modified Files"        statistics["modified_files"];
+        "Deleted Files"         statistics["remove_files"];
+    ], [
+        "Git Opration Type"     "Operation Count";
+    ])
 end
 
 """
@@ -115,22 +132,29 @@ function _read_git_repositories(path_list::Set{String},
                                 all_branches::Bool,
                                 date::String)
     statistics = Dict{String, Integer}(
-        "add_lines"     =>      0,
-        "remove_lines"  =>      0,
-        "add_files"     =>      0,
-        "remove_files"  =>      0,
-        "commits"       =>      0
+        "add_lines"      =>      0,
+        "remove_lines"   =>      0,
+        "add_files"      =>      0,
+        "modified_files" =>      0,
+        "remove_files"   =>      0,
+        "commits"        =>      0
     )
 
     for each_path in path_list
-        _read_git_repository(each_path, all_branches, date)
-#         add_lines, remove_lines, add_files, remove_files, commits = _read_git_repository(each_path, all_branches, date)
-#
-#         statistics["add_lines"]    = statistics["add_lines"]    + add_lines
-#         statistics["remove_lines"] = statistics["remove_lines"] + remove_lines
-#         statistics["add_files"]    = statistics["add_files"]    + add_files
-#         statistics["remove_files"] = statistics["remove_files"] + remove_files
-#         statistics["commits"]      = statistics["commits"]      + commits
+        try
+            current_statistics = _read_git_repository(each_path, all_branches, date)
+
+            statistics["add_lines"]       = statistics["add_lines"]       + current_statistics["add_lines"]
+            statistics["remove_lines"]    = statistics["remove_lines"]    + current_statistics["remove_lines"]
+            statistics["add_files"]       = statistics["add_files"]       + current_statistics["add_files"]
+            statistics["modified_files"]  = statistics["modified_files"]  + current_statistics["modified_files"]
+            statistics["remove_files"]    = statistics["remove_files"]    + current_statistics["remove_files"]
+            statistics["commits"]         = statistics["commits"]         + current_statistics["commits"]
+        catch e
+            bt = catch_backtrace()
+            msg = sprint(showerror, e, bt)
+            println("解析$(each_path)时出现错误，错误信息为\n$(msg)")
+        end
     end
 
     return statistics
@@ -158,21 +182,83 @@ function _read_git_repository(git_path::String,
         # 获取所有分支列表
         branch_list_raw = _run_git_command(`branch -a`)
         for each in branch_list_raw
-            try
-                branch_name = match(r"[ ]([\S]+$)", each)[1]
+            matched = match(r"[ ]([\S]+$)", each)
+            if typeof(matched) == RegexMatch && length(matched.offsets) == 1
+                branch_name = matched[1]
                 push!(branches, branch_name)
-            catch e; end
+            end
         end
     else
         # 仅master分支
         push!(branches, "master")
     end
 
-    # 2. 获取每个分支中的每个commit编号
-    commit_id = Array{String, 1}()
+    # 2. 获取每个分支中的每个commit编号，因为可能重复，所以要使用Set
+    commit_id = Set{String}()
     for each_branch in branches
-
+        commit_log = _run_git_command(`log --first-parent $each_branch`)
+        for each_commit_log_line in commit_log
+            matched_line = match(r"^commit ([a-z0-9]{40})", each_commit_log_line)
+            if typeof(matched_line) == RegexMatch && length(matched_line.offsets) == 1
+                push!(commit_id, matched_line[1])
+            end
+        end
     end
+
+    # 3. 获取每个Commit的信息，将其与date比对，如果比对一致，则解析其中的各项数据
+    statistics = Dict{String, Integer}(
+        "add_lines"      =>      0,
+        "remove_lines"   =>      0,
+        "add_files"      =>      0,
+        "modified_files" =>      0,
+        "remove_files"   =>      0,
+        "commits"        =>      length(commit_id)
+    )
+
+    for each_commit in commit_id
+        commit_patch = _run_git_command(`show $each_commit --date=short`)
+        # 检查日期
+        commit_date = match(r"Date:[\s]+([0-9]{4}-[0-9]{2}-[0-9]{2})", commit_patch[3])[1]
+        if commit_date == date
+            # 获取行数增减情况
+            commit_lines_info = _run_git_command(`show $each_commit --stat --date=short`)
+            last_commit_line_info = commit_lines_info[length(commit_lines_info)]
+
+            insertions = match(r"([\d]+) insertion", last_commit_line_info)
+            deletions  = match(r"([\d]+) deletion" , last_commit_line_info)
+
+            if (typeof(insertions) == RegexMatch)
+                statistics["add_lines"]     = statistics["add_lines"]    + parse(Int, insertions[1])
+            end
+
+            if (typeof(deletions)  == RegexMatch)
+                statistics["remove_lines"]  = statistics["remove_lines"] + parse(Int, deletions[1])
+            end
+
+            # 获取文件增减情况
+            commit_files_info = _run_git_command(`show $each_commit --name-status --date=short`)
+            for each_line in commit_files_info
+                # M = modified
+                # A = added
+                # D = deleted
+                # R = renamed
+                # C = copied
+                # U = updated but unmerged
+                add_match       = match(r"(A)[\s]+",       each_line)
+                modified_match  = match(r"(M|R|C|U)[\s]+", each_line)
+                delete_match    = match(r"(D)[\s]+",       each_line)
+                if typeof(add_match)            == RegexMatch
+                    statistics["add_files"]         = statistics["add_files"] + 1
+                elseif typeof(modified_match)   == RegexMatch
+                    statistics["modified_files"]    = statistics["modified_files"] + 1
+                elseif typeof(delete_match)     == RegexMatch
+                    statistics["remove_files"]      = statistics["remove_files"] + 1
+                end
+            end
+        end
+    end
+
+    return statistics
 end
 
 """
