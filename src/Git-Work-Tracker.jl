@@ -268,6 +268,7 @@ end
 """
 function _run_git_command(command::Cmd)
     return split(readchomp(`$GIT_COMMAND $command`), "\n")
+    
 end
 
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
