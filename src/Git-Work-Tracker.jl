@@ -15,7 +15,7 @@ using ArgParse
 using Dates
 using PrettyTables
 
-export main, _mount_argparse, _scan_git_repositories, _read_git_repositories, _run_git_command
+export main, _mount_argparse, _scan_git_repositories, _read_git_repositories, _read_git_repository, _run_git_command
 
 IGNORE_PATH = Array{String, 1}([
     # Git的子目录
@@ -36,16 +36,33 @@ IGNORE_PATH = Array{String, 1}([
 GIT_COMMAND = `git --no-pager`
 
 """
-    main()
+    main(parameters::Dict{String, Union{String, Bool}} = Dict{String, Union{String, Bool}}())
 
-主函数入口，允许如下参数被传入：
+主函数入口，允许如下命令行参数被传入：
 1. --scan-dir="/random/dir"     扫描目录，不指定默认为脚本执行的当前目录
 2. --all-branches=true/false    是否扫描Git仓库的所有分支，默认为false
 3. --date="2020-06-01"          输出某一天的数据，默认为当天
+4. --user="Benjamin"            只输出某个特定用户的Commit统计，支持前缀匹配（无需输入全名），默认为所有用户
+
+如果你想将本软件集成在其他代码中，可以直接调用main函数，示例：
+```julia
+main(Dict{String, Union{String, Bool}}(
+    "all_branches"  =>  true,
+    "user"          =>  "Benjamin Chris"
+))
+```
+
+调用main函数传入的参数优先级高于命令行参数
 """
-function main()
-    # 解析传入参数
+function main(parameters::Dict{String, Union{String, Bool}} = Dict{String, Union{String, Bool}}())
+    # 解析命令行参数
     parsed_args = _mount_argparse()
+
+    # 解析传入参数
+    for (k, v) in parameters
+        parsed_args[k] = v
+    end
+
     println("你所输入的参数为:")
     for (arg, val) in parsed_args
         println("\t$arg  =>  $val")
@@ -59,7 +76,7 @@ function main()
     # 开始解析
     println("")
     println("在目录下扫描到$(length(paths_contains_git_repository))个仓库，开始按照设定的规则进行解析:")
-    statistics = _read_git_repositories(paths_contains_git_repository, parsed_args["all-branches"], parsed_args["date"])
+    statistics = _read_git_repositories(paths_contains_git_repository, parsed_args["all-branches"], parsed_args["date"], parsed_args["user"])
 
     # 输出结果
     println("")
@@ -145,13 +162,15 @@ end
 """
     _read_git_repositories(path_list::Set{String},
                            all_branches::Bool,
-                           date::String)
+                           date::String
+                           user::String)
 
 根据传入参数读取所有`path_list`中的Git仓库，获得相关统计数据
 """
 function _read_git_repositories(path_list::Set{String},
                                 all_branches::Bool,
-                                date::String)
+                                date::String,
+                                user::String)
     statistics = Dict{String, Integer}(
         "add_lines"      =>      0,
         "remove_lines"   =>      0,
@@ -168,7 +187,7 @@ function _read_git_repositories(path_list::Set{String},
         _overprint("正在解析仓库$(path_count)/$(length(path_list))：$(each_path)")
 
         try
-            current_statistics = _read_git_repository(each_path, all_branches, date)
+            current_statistics = _read_git_repository(each_path, all_branches, date, user)
 
             statistics["add_lines"]       = statistics["add_lines"]       + current_statistics["add_lines"]
             statistics["remove_lines"]    = statistics["remove_lines"]    + current_statistics["remove_lines"]
@@ -189,7 +208,8 @@ end
 """
     _read_git_repository(git_path::String,
                          all_branches::Bool,
-                         date::String)
+                         date::String
+                         user::String)
 
 读取每个Git仓库中的以下内容：
 1. 新增行数
@@ -200,7 +220,8 @@ end
 """
 function _read_git_repository(git_path::String,
                               all_branches::Bool,
-                              date::String)
+                              date::String,
+                              user::String)
 
     # 1. 分支检查
     branches = Array{String, 1}()
@@ -222,7 +243,7 @@ function _read_git_repository(git_path::String,
     # 2. 获取每个分支中的每个commit编号，使用Array让其按时间顺序排列（第三步可以极大优化性能）
     commit_id = Array{String, 1}()
     for each_branch in branches
-        commit_log = _run_git_command(git_path, `log --first-parent $each_branch`)
+        commit_log = _run_git_command(git_path, `log --first-parent $each_branch --author "$user"`)
         for each_commit_log_line in commit_log
             matched_line = match(r"^commit ([a-z0-9]{40})", each_commit_log_line)
             if typeof(matched_line) == RegexMatch && length(matched_line.offsets) == 1
@@ -335,7 +356,10 @@ end
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
 # 类似Python的if __name__ == "__main__"？
 if abspath(PROGRAM_FILE) == @__FILE__
-    main()
+    main(Dict{String, Union{String, Bool}}(
+        "all_branches"  =>  true,
+        "user"          =>  "Benjamin Chris"
+    ))
 end
 
 end
