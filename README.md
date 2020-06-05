@@ -1,11 +1,11 @@
 # Git Work Tracker
 > 轻松跟踪本地Git仓库的每日活动状态
 > 
-> Tracking your git activity at ease
+> Keep tracking of your daily git activity at ease.
 
-> 当前版本只考虑支持简体中文，如果有其他语言需求欢迎[提交Issue](https://github.com/LuRenJiasWorld/Git-Work-Tracker/issues) ！
+> 当前版本只支持简体中文，如果有其他语言需求欢迎[提交Issue](https://github.com/LuRenJiasWorld/Git-Work-Tracker/issues) ！
 > 
-> Only supports Simplified Chinese now, feel free to [creating an issue](https://github.com/LuRenJiasWorld/Git-Work-Tracker/issues) if you need other languages !
+> Only supports Simplified Chinese now, feel free to [create an issue](https://github.com/LuRenJiasWorld/Git-Work-Tracker/issues) if you need other languages !
 
 ## 示例
 ```bash
