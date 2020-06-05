@@ -161,7 +161,7 @@ function _scan_git_repositories(scan_dir::String)
         end
     end
 
-    println("目录扫描完成，扫描了$(dir_count)个目录，忽略了$(ignore_dir_count)个目录，扫描到$(length(dir_list))个Git目录")
+    _overprint("目录扫描完成，扫描了$(dir_count)个目录，忽略了$(ignore_dir_count)个目录，扫描到$(length(dir_list))个Git目录")
 
     return dir_list
 end
@@ -209,6 +209,8 @@ function _read_git_repositories(path_list::Set{String},
         end
     end
 
+    _overprint("所有$(length(path_list))个仓库解析完成！")
+
     return statistics
 end
 
@@ -222,8 +224,9 @@ end
 1. 新增行数
 2. 删除行数
 3. 新增文件数
-4. 删除文件数
-5. 提交数
+4. 修改文件数
+5. 删除文件数
+6. 提交数
 """
 function _read_git_repository(git_path::String,
                               all_branches::Bool,
