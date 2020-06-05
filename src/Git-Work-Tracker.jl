@@ -356,10 +356,7 @@ end
 # 因为要被makedocs.jl包含，不能在被include的时候执行这一块代码
 # 类似Python的if __name__ == "__main__"？
 if abspath(PROGRAM_FILE) == @__FILE__
-    main(Dict{String, Union{String, Bool}}(
-        "all_branches"  =>  true,
-        "user"          =>  "Benjamin Chris"
-    ))
+    main()
 end
 
 end
