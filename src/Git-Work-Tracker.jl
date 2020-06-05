@@ -96,6 +96,10 @@ function _mount_argparse()
             help = "输出某一天的数据，默认为当天"
             arg_type = String
             default = Dates.format(Dates.now(), "yyyy-mm-dd")
+        "--user"
+            help = "筛选指定的用户名（用于多人协作开发场景）"
+            arg_type = String
+            default = ""
     end
 
     return parse_args(s)
