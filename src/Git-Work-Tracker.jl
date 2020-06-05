@@ -63,10 +63,17 @@ function main(parameters::Dict{String, Union{String, Bool}} = Dict{String, Union
         parsed_args[k] = v
     end
 
-    println("你所输入的参数为:")
-    for (arg, val) in parsed_args
-        println("\t$arg  =>  $val")
-    end
+    # 输出参数列表
+    arg_table = Array{Union{String, Bool, Missing}}(missing, length(parsed_args), 2)
+    (function (i)
+        for (arg, val) in parsed_args
+            arg_table[i, 1] = arg
+            arg_table[i, 2] = val
+            i = i + 1
+        end
+        println("你传入的参数为:")
+        pretty_table(arg_table, ["Key", "Value"])
+    end)(1)
 
     # 开始扫描
     println("")
