@@ -90,11 +90,11 @@ function main(parameters::Dict{String, Union{String, Bool}} = Dict{String, Union
     println("扫描完成！你在$(parsed_args["date"])的Git活动如下所示:")
     pretty_table([
         "Commits"               statistics["commits"];
-        "Add Lines"             statistics["add_lines"];
-        "Delete Lines"          statistics["remove_lines"];
-        "Add Files"             statistics["add_files"];
+        "Added Lines"           statistics["added_lines"];
+        "Removed Lines"         statistics["removed_lines"];
+        "Added Files"           statistics["added_files"];
         "Modified Files"        statistics["modified_files"];
-        "Deleted Files"         statistics["remove_files"];
+        "Removed Files"         statistics["removed_files"];
     ], [
         "Git Opration Type"     "Operation Count";
     ])
@@ -179,12 +179,12 @@ function _read_git_repositories(path_list::Set{String},
                                 date::String,
                                 user::String)
     statistics = Dict{String, Integer}(
-        "add_lines"      =>      0,
-        "remove_lines"   =>      0,
-        "add_files"      =>      0,
-        "modified_files" =>      0,
-        "remove_files"   =>      0,
-        "commits"        =>      0
+        "added_lines"      =>      0,
+        "removed_lines"    =>      0,
+        "added_files"      =>      0,
+        "modified_files"   =>      0,
+        "removed_files"    =>      0,
+        "commits"          =>      0
     )
 
     path_count = 0
@@ -196,12 +196,12 @@ function _read_git_repositories(path_list::Set{String},
         try
             current_statistics = _read_git_repository(each_path, all_branches, date, user)
 
-            statistics["add_lines"]       = statistics["add_lines"]       + current_statistics["add_lines"]
-            statistics["remove_lines"]    = statistics["remove_lines"]    + current_statistics["remove_lines"]
-            statistics["add_files"]       = statistics["add_files"]       + current_statistics["add_files"]
-            statistics["modified_files"]  = statistics["modified_files"]  + current_statistics["modified_files"]
-            statistics["remove_files"]    = statistics["remove_files"]    + current_statistics["remove_files"]
-            statistics["commits"]         = statistics["commits"]         + current_statistics["commits"]
+            statistics["added_lines"]      = statistics["added_lines"]      + current_statistics["added_lines"]
+            statistics["removed_lines"]    = statistics["removed_lines"]    + current_statistics["removed_lines"]
+            statistics["added_files"]      = statistics["added_files"]      + current_statistics["added_files"]
+            statistics["modified_files"]   = statistics["modified_files"]   + current_statistics["modified_files"]
+            statistics["removed_files"]    = statistics["removed_files"]    + current_statistics["removed_files"]
+            statistics["commits"]          = statistics["commits"]          + current_statistics["commits"]
         catch e
             bt = catch_backtrace()
             msg = sprint(showerror, e, bt)
@@ -268,12 +268,12 @@ function _read_git_repository(git_path::String,
 
     # 3. 获取每个Commit的信息，将其与date比对，如果比对一致，则解析其中的各项数据
     statistics = Dict{String, Integer}(
-        "add_lines"      =>      0,
-        "remove_lines"   =>      0,
-        "add_files"      =>      0,
-        "modified_files" =>      0,
-        "remove_files"   =>      0,
-        "commits"        =>      0
+        "added_lines"       =>      0,
+        "removed_lines"     =>      0,
+        "added_files"       =>      0,
+        "modified_files"    =>      0,
+        "removed_files"     =>      0,
+        "commits"           =>      0
     )
 
     for each_commit in commit_id
@@ -301,11 +301,11 @@ function _read_git_repository(git_path::String,
             deletions  = match(r"([\d]+) deletion" , last_commit_line_info)
 
             if (typeof(insertions) == RegexMatch)
-                statistics["add_lines"]     = statistics["add_lines"]    + parse(Int, insertions[1])
+                statistics["added_lines"]   = statistics["added_lines"]    + parse(Int, insertions[1])
             end
 
             if (typeof(deletions)  == RegexMatch)
-                statistics["remove_lines"]  = statistics["remove_lines"] + parse(Int, deletions[1])
+                statistics["removed_lines"] = statistics["removed_lines"] + parse(Int, deletions[1])
             end
 
             # 获取文件增减情况
@@ -321,11 +321,11 @@ function _read_git_repository(git_path::String,
                 modified_match  = match(r"(M|R|C|U)[\s]+", each_line)
                 delete_match    = match(r"(D)[\s]+",       each_line)
                 if typeof(add_match)            == RegexMatch
-                    statistics["add_files"]         = statistics["add_files"] + 1
+                    statistics["added_files"]         = statistics["added_files"] + 1
                 elseif typeof(modified_match)   == RegexMatch
-                    statistics["modified_files"]    = statistics["modified_files"] + 1
+                    statistics["modified_files"]      = statistics["modified_files"] + 1
                 elseif typeof(delete_match)     == RegexMatch
-                    statistics["remove_files"]      = statistics["remove_files"] + 1
+                    statistics["removed_files"]       = statistics["removed_files"] + 1
                 end
             end
         elseif statistics["commits"] > 0
