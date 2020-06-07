@@ -332,6 +332,7 @@ function _read_git_repository(git_path::String,
             # 第二步按照时间顺序进行了排序，所以说如果检测到commit > 0的情况，但时间不匹配，说明不需要继续查找了
             break
         elseif Date(commit_date, DateFormat("y-m-d")) < Date(date, DateFormat("y-m-d"))
+            # 如果扫描到的第一个时间就早于设定的时间，说明后面也不可能有匹配的内容，可以直接跳过
             break
         end
     end
