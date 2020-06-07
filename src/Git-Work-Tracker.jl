@@ -321,11 +321,11 @@ function _read_git_repository(git_path::String,
                 modified_match  = match(r"(M|R|C|U)[\s]+", each_line)
                 delete_match    = match(r"(D)[\s]+",       each_line)
                 if typeof(add_match)            == RegexMatch
-                    statistics["added_files"]         = statistics["added_files"] + 1
+                    statistics["added_files"]         = statistics["added_files"]    + 1
                 elseif typeof(modified_match)   == RegexMatch
                     statistics["modified_files"]      = statistics["modified_files"] + 1
                 elseif typeof(delete_match)     == RegexMatch
-                    statistics["removed_files"]       = statistics["removed_files"] + 1
+                    statistics["removed_files"]       = statistics["removed_files"]  + 1
                 end
             end
         elseif statistics["commits"] > 0
